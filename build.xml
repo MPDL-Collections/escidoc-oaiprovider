@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="oaiprovider" default="dist" basedir=".">
+<project name="oaiprovider" default="dist" basedir="." xmlns:artifact="antlib:org.apache.maven.artifact.ant">
 
   <loadproperties srcFile="build.properties"/>
 
   <property name="oaiprovider.version" value="1.2"/>
+	<property name="build.dir" value="build" />
+	<property name="bin.dir" value="bin" />
+	<property name="dist.dir" value="dist" />
+	<property name="src.dir" value="src" />
+	<property name="lib.dir" value="lib" />
+	<property name="conf.dir" value="conf" />
+	<property name="sources.dir" value="sources" />
+	<property name="docu.dir" value="docu" />
+	<property name="build.version" value="0.0.10-SNAPSHOT" />
+	<property name="webapp.name" value="escidoc-oaiprovider" />
 
   <path id="base.path">
   	<pathelement location="${lib.jodatime}"/>
@@ -53,23 +63,23 @@
         <exclude name="release/**"/>
       </fileset>
     </copy>
-    <zip zipfile="dist/release/escidoc-oaiprovider-${oaiprovider.version}.zip" basedir="dist/release" includes="oaiprovider-${oaiprovider.version}/**"/>
-    <delete dir="dist/release/oaiprovider-${oaiprovider.version}"/>
+    <zip zipfile="dist/release/escidoc-oaiprovider-${oaiprovider.version}.zip" basedir="${dist.dir}/release" includes="oaiprovider-${oaiprovider.version}/**"/>
+    <delete dir="${dist.dir}/release/oaiprovider-${oaiprovider.version}"/>
   </target>
 
   <target name="srcrelease" depends="clean">
-    <copy todir="dist/release/oaiprovider-${oaiprovider.version}-src">
+    <copy todir="${dist.dir}/release/oaiprovider-${oaiprovider.version}-src">
       <fileset dir=".">
-        <exclude name="dist/**"/>
+        <exclude name="${dist.dir}/**"/>
       </fileset>
     </copy>
-    <zip zipfile="dist/release/escidoc-oaiprovider-${oaiprovider.version}-src.zip" basedir="dist/release" includes="oaiprovider-${oaiprovider.version}-src/**"/>
-    <delete dir="dist/release/oaiprovider-${oaiprovider.version}-src"/>
+    <zip zipfile="${dist.dir}/release/escidoc-oaiprovider-${oaiprovider.version}-src.zip" basedir="${dist.dir}/release" includes="oaiprovider-${oaiprovider.version}-src/**"/>
+    <delete dir="${dist.dir}/release/oaiprovider-${oaiprovider.version}-src"/>
   </target>
 
   <target name="release" depends="srcrelease,binrelease" description="Build the source and binary distributions in dist/release">
     <checksum fileext=".md5">
-      <fileset dir="dist/release">
+      <fileset dir="${dist.dir}/release">
         <include name="*.zip"/>
       </fileset>
     </checksum>
@@ -124,12 +134,12 @@
         <exclude name="junit.jar"/>
       </fileset>
     </copy>
-    <jar jarfile="dist/escidoc-oaiprovider.war" basedir="build/webapp"/>
+    <jar jarfile="${dist.dir}/${webapp.name}.war" basedir="build/webapp"/>
   </target>
 	<target name="deployTomcat" depends="dist">
 				<delete dir="C:/apache-tomcat-5.5.26/webapps/escidoc-oaiprovider" />
 				<delete file="C:/apache-tomcat-5.5.26/webapps/escidoc-oaiprovider.war" />
-				<copy file="dist/escidoc-oaiprovider.war" todir="C:/apache-tomcat-5.5.26/webapps" />
+				<copy file="${dist.dir}/escidoc-oaiprovider.war" todir="C:/apache-tomcat-5.5.26/webapps" />
 			</target>
   <target name="javadoc"
           depends="prep"
@@ -138,7 +148,7 @@
            classpathref="compile.path"
            sourcepath="src/java"
            defaultexcludes="yes"
-           destdir="dist/doc/api"
+           destdir="${dist.dir}/doc/api"
            use="true"
            windowtitle="Escidoc OAI Provider Javadocs">
       <doctitle><![CDATA[<h1>Escidoc OAI Provider Javadocs</h1>]]></doctitle>
@@ -146,11 +156,11 @@
   </target>
 
   <target name="doc" depends="prep" description="Build the user docs in dist/doc">
-    <mkdir dir="dist/doc"/> 
-    <copy todir="dist/doc">
+    <mkdir dir="${dist.dir}/doc"/> 
+    <copy todir="${dist.dir}/doc">
       <fileset dir="src/doc"/>
     </copy>
-    <java classpath="${lib.propstodocs}" classname="PropsToDocs" output="dist/doc/configuration.html">
+    <java classpath="${lib.propstodocs}" classname="PropsToDocs" output="${dist.dir}/doc/configuration.html">
       <arg path="src/config/proai.properties"/>
     </java>
   </target>
@@ -200,12 +210,55 @@
   <target name="prep"
           description="prepare for a build" depends="clean">
     <mkdir dir="build"/>
-    <mkdir dir="dist"/>
+    <mkdir dir="${dist.dir}"/>
   </target>
 
   <target name="clean"
           description="remove all build-generated stuff">
       <delete dir="build"/>
-      <delete dir="dist"/>
+      <delete dir="${dist.dir}"/>
   </target>
+	
+	
+	<target name="install" depends="dist, sources">
+		<!-- deploy war and sources -->
+		<artifact:pom id="memorypom" groupId="org.escidoc.wildfly" artifactId="oaiprovider" version="${build.version}" name="SRW server for eSciDoc" packaging="war" />
+		<artifact:writepom pomRefId="memorypom" file="${dist.dir}/${webapp.name}-${build.version}.pom" />
+		<artifact:pom id="filepom" file="${dist.dir}/${webapp.name}-${build.version}.pom" />
+		<artifact:install file="${dist.dir}/${webapp.name}.war">
+			<pom refid="filepom" />
+			<attach file="${dist.dir}/${webapp.name}-sources.zip" type="zip" classifier="sources"/>
+		</artifact:install>
+	</target>
+
+	<target name="deploy" depends="install, sources">
+		<!-- deploy war and sources -->
+		<artifact:deploy file="${dist.dir}/${webapp.name}.war" uniqueVersion="true">
+			<remoteRepository url="${artifactory.url}" id="${artifactory.id}" />
+			<pom refid="filepom" />
+		</artifact:deploy>
+	</target>
+		
+	<target name="sources" description="Pack sources for download.">
+		<delete dir="${sources.dir}"/>
+		<mkdir dir="${sources.dir}"/>
+		<mkdir dir="${sources.dir}/${project.name}"/>
+		<copy todir="${sources.dir}/${project.name}">
+			<fileset dir=".">
+				<exclude name="${build.dir}/*/**"/>
+				<exclude name="${bin.dir}/*/**"/>
+				<exclude name="${dist.dir}/*/**"/>
+				<exclude name="${sources.dir}/**"/>
+				<exclude name="${build.dir}/*/**"/>
+				<exclude name="${docu.dir}/**"/>
+				<exclude name="${src.dir}/srwsafe/**"/>
+				<exclude name="**/.svn"/>
+				<exclude name=".classpath"/>
+				<exclude name=".project"/>
+			</fileset>
+		</copy>
+		<zip zipfile="${dist.dir}/${webapp.name}-sources.zip"
+             basedir="${sources.dir}/${project.name}" includes="**"/>
+		<delete dir="${sources.dir}"/>
+	</target>
 </project>
